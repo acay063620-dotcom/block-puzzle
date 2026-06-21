@@ -349,7 +349,7 @@ class _GameScreenState extends State<GameScreen> {
     final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     if (stackBox == null) return null;
 
-    final lift = cellSize * 1.4;
+    final lift = cellSize * 1.8;
     final anchor = pos.translate(0, -lift);
     final local = stackBox.globalToLocal(anchor);
     final pieceW = shape.width * cellSize;
