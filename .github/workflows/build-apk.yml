@@ -19,7 +19,7 @@ jobs:
           channel: 'stable'
 
       - name: Android klasörünü oluştur (eksikse)
-        run: flutter create --platforms=android .
+        run: flutter create --platforms=android --project-name=block_puzzle .
 
       - name: Bağımlılıkları indir
         run: flutter pub get
