@@ -21,6 +21,10 @@ jobs:
       - name: Android klasörünü oluştur (eksikse)
         run: flutter create --platforms=android --project-name=block_puzzle .
 
+      - name: Kotlin sürümünü güncelle
+        run: |
+          sed -i 's/id "org.jetbrains.kotlin.android" version "[^"]*"/id "org.jetbrains.kotlin.android" version "1.9.10"/' android/settings.gradle
+
       - name: Bağımlılıkları indir
         run: flutter pub get
 
