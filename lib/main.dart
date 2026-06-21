@@ -1,37 +1,25 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter_displaymode/flutter_displaymode.dart';
 
-Future<void> _enableHighRefreshRate() async {
-  try {
-    await FlutterDisplayMode.setHighRefreshRate();
-  } catch (_) {
-    // Cihaz desteklemiyorsa sessizce geç, oyunu etkilemesin.
-  }
-}
-
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([
+  SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  await _enableHighRefreshRate();
-  runApp(const ParazulaApp());
+  runApp(const BlockPuzzleApp());
 }
 
-class ParazulaApp extends StatelessWidget {
-  const ParazulaApp({super.key});
+class BlockPuzzleApp extends StatelessWidget {
+  const BlockPuzzleApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Parazula - Block Puzzle',
+      title: 'Block Puzzle',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
@@ -42,299 +30,7 @@ class ParazulaApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const SplashScreen(),
-    );
-  }
-}
-
-/// ----------------- AYARLAR SERVİSİ -----------------
-
-class AppSettings {
-  static bool musicEnabled = true;
-  static bool vibrationEnabled = true;
-
-  static Future<void> load() async {
-    final prefs = await SharedPreferences.getInstance();
-    musicEnabled = prefs.getBool('music_enabled') ?? true;
-    vibrationEnabled = prefs.getBool('vibration_enabled') ?? true;
-  }
-
-  static Future<void> setMusic(bool value) async {
-    musicEnabled = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('music_enabled', value);
-  }
-
-  static Future<void> setVibration(bool value) async {
-    vibrationEnabled = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('vibration_enabled', value);
-  }
-}
-
-/// ----------------- MÜZİK SERVİSİ -----------------
-
-class BgmPlayer {
-  static final AudioPlayer _player = AudioPlayer();
-  static bool _started = false;
-
-  static Future<void> start() async {
-    if (_started) return;
-    _started = true;
-    try {
-      await _player.setReleaseMode(ReleaseMode.loop);
-      await _player.setVolume(AppSettings.musicEnabled ? 0.5 : 0.0);
-      await _player.play(AssetSource('audio/bgm.wav'));
-    } catch (_) {
-      // Müzik çalınamazsa oyun yine de oynanabilir kalsın.
-    }
-  }
-
-  static Future<void> applySettings() async {
-    try {
-      await _player.setVolume(AppSettings.musicEnabled ? 0.5 : 0.0);
-    } catch (_) {}
-  }
-}
-
-void _vibrate({bool light = false}) {
-  if (!AppSettings.vibrationEnabled) return;
-  if (light) {
-    HapticFeedback.lightImpact();
-  } else {
-    HapticFeedback.mediumImpact();
-  }
-}
-
-/// ----------------- PARAZULA LOGOSU -----------------
-
-class ParazulaLogo extends StatelessWidget {
-  final double blockSize;
-  const ParazulaLogo({super.key, this.blockSize = 18});
-
-  static const List<List<int>> _pattern = [
-    [1, 1, 1, 0],
-    [1, 0, 0, 1],
-    [1, 0, 0, 1],
-    [1, 1, 1, 0],
-    [1, 0, 0, 0],
-    [1, 0, 0, 0],
-  ];
-
-  static const List<Color> _logoColors = [
-    Color(0xFF6C63FF),
-    Color(0xFF38BDF8),
-    Color(0xFF4ECDC4),
-    Color(0xFFFFD93D),
-    Color(0xFFFF8C42),
-    Color(0xFFFF6B6B),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(_pattern.length, (r) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(_pattern[r].length, (c) {
-            final filled = _pattern[r][c] == 1;
-            final color = _logoColors[(r + c) % _logoColors.length];
-            return Padding(
-              padding: EdgeInsets.all(blockSize * 0.1),
-              child: Container(
-                width: blockSize,
-                height: blockSize,
-                decoration: filled
-                    ? BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(blockSize * 0.28),
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withOpacity(0.6),
-                            blurRadius: blockSize * 0.3,
-                            offset: Offset(0, blockSize * 0.15),
-                          ),
-                        ],
-                      )
-                    : null,
-              ),
-            );
-          }),
-        );
-      }),
-    );
-  }
-}
-
-/// ----------------- AÇILIŞ (SPLASH) EKRANI -----------------
-
-class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
-
-  @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    );
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-    _scale = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-    _controller.forward();
-    _init();
-  }
-
-  Future<void> _init() async {
-    await AppSettings.load();
-    unawaited(BgmPlayer.start());
-    await Future.delayed(const Duration(milliseconds: 2200));
-    if (!mounted) return;
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (_, __, ___) => const GameScreen(),
-        transitionsBuilder: (_, anim, __, child) =>
-            FadeTransition(opacity: anim, child: child),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121225),
-      body: Center(
-        child: FadeTransition(
-          opacity: _fade,
-          child: ScaleTransition(
-            scale: _scale,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const ParazulaLogo(blockSize: 22),
-                const SizedBox(height: 22),
-                const Text(
-                  'PARAZULA',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 4,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Block Puzzle',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.white.withOpacity(0.5),
-                    letterSpacing: 2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// ----------------- AYARLAR EKRANI -----------------
-
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends State<SettingsScreen> {
-  bool _music = AppSettings.musicEnabled;
-  bool _vibration = AppSettings.vibrationEnabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121225),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const Text('Ayarlar'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _settingTile(
-            icon: Icons.music_note_rounded,
-            title: 'Müzik',
-            subtitle: 'Arka plan melodisini aç/kapat',
-            value: _music,
-            onChanged: (v) async {
-              setState(() => _music = v);
-              await AppSettings.setMusic(v);
-              await BgmPlayer.applySettings();
-            },
-          ),
-          const SizedBox(height: 12),
-          _settingTile(
-            icon: Icons.vibration_rounded,
-            title: 'Titreşim',
-            subtitle: 'Yerleştirme ve oyun olaylarında titreşim',
-            value: _vibration,
-            onChanged: (v) async {
-              setState(() => _vibration = v);
-              await AppSettings.setVibration(v);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _settingTile({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1B1B33),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: SwitchListTile(
-        secondary: Icon(icon, color: const Color(0xFF6C63FF)),
-        title: Text(title,
-            style:
-                const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        subtitle: Text(subtitle,
-            style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-        value: value,
-        activeColor: const Color(0xFF6C63FF),
-        onChanged: onChanged,
-      ),
+      home: const GameScreen(),
     );
   }
 }
@@ -347,9 +43,8 @@ class BlockShape {
   final List<Point<int>> cells; // x = sütun, y = satır (göreceli)
   final Color color;
   final int id;
-  final int defIndex;
 
-  BlockShape(this.cells, this.color, this.id, this.defIndex);
+  BlockShape(this.cells, this.color, this.id);
 
   int get width => cells.map((c) => c.x).reduce(max) + 1;
   int get height => cells.map((c) => c.y).reduce(max) + 1;
@@ -396,12 +91,6 @@ final List<Color> _palette = [
 
 final Random _rng = Random();
 
-class _DragData {
-  final BlockShape shape;
-  final int trayIndex;
-  _DragData(this.shape, this.trayIndex);
-}
-
 /// ----------------- OYUN EKRANI -----------------
 
 class GameScreen extends StatefulWidget {
@@ -412,8 +101,6 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
-  static const _kSavedGame = 'saved_game_v1';
-
   late List<List<Color?>> grid;
   late List<BlockShape?> tray;
   int score = 0;
@@ -422,40 +109,33 @@ class _GameScreenState extends State<GameScreen> {
   int _pieceIdCounter = 0;
 
   final GlobalKey _gridKey = GlobalKey();
+  final GlobalKey _stackKey = GlobalKey();
   double cellSize = 0;
 
   Set<Point<int>> previewCells = {};
   bool previewValid = false;
   Set<Point<int>> clearingCells = {};
 
+  // Elle sürükleme takibi (parmak yukarıda, blok kaldırılmış şekilde gösterilir)
+  BlockShape? _draggingShape;
+  int? _draggingIndex;
+  Offset? _fingerPos;
+  Point<int>? _previewTopLeft;
+
   @override
   void initState() {
     super.initState();
     grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null));
     tray = List.generate(3, (_) => _newShape());
-    _init();
-  }
-
-  Future<void> _init() async {
-    await _loadHighScore();
-    await _loadGameState();
-    _checkGameOverState();
+    _loadHighScore();
   }
 
   BlockShape _newShape() {
     _pieceIdCounter++;
-    final defIndex = _rng.nextInt(_shapeDefs.length);
-    final def = _shapeDefs[defIndex];
+    final def = _shapeDefs[_rng.nextInt(_shapeDefs.length)];
     final cells = def.map((c) => Point<int>(c[1], c[0])).toList();
     final color = _palette[_rng.nextInt(_palette.length)];
-    return BlockShape(cells, color, _pieceIdCounter, defIndex);
-  }
-
-  BlockShape _shapeFromSaved(int defIndex, int colorIndex) {
-    _pieceIdCounter++;
-    final def = _shapeDefs[defIndex];
-    final cells = def.map((c) => Point<int>(c[1], c[0])).toList();
-    return BlockShape(cells, _palette[colorIndex], _pieceIdCounter, defIndex);
+    return BlockShape(cells, color, _pieceIdCounter);
   }
 
   Future<void> _loadHighScore() async {
@@ -473,68 +153,6 @@ class _GameScreenState extends State<GameScreen> {
       await prefs.setInt('high_score', highScore);
       if (mounted) setState(() {});
     }
-  }
-
-  /// Devam eden oyunu (skor + tahta + eldeki parçalar) kalıcı olarak kaydeder.
-  Future<void> _saveGameState() async {
-    final prefs = await SharedPreferences.getInstance();
-    final flatGrid = <int>[];
-    for (final row in grid) {
-      for (final cell in row) {
-        flatGrid.add(cell == null ? -1 : _palette.indexOf(cell));
-      }
-    }
-    final trayData = tray.map((shape) {
-      if (shape == null) return null;
-      return {'def': shape.defIndex, 'color': _palette.indexOf(shape.color)};
-    }).toList();
-    final data = jsonEncode({
-      'score': score,
-      'grid': flatGrid,
-      'tray': trayData,
-    });
-    await prefs.setString(_kSavedGame, data);
-  }
-
-  /// Kaydedilmiş bir oyun varsa geri yükler.
-  Future<bool> _loadGameState() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_kSavedGame);
-    if (raw == null) return false;
-    try {
-      final data = jsonDecode(raw) as Map<String, dynamic>;
-      final flatGrid = (data['grid'] as List).cast<int>();
-      if (flatGrid.length != gridSize * gridSize) return false;
-
-      final newGrid = List.generate(gridSize, (r) {
-        return List.generate(gridSize, (c) {
-          final v = flatGrid[r * gridSize + c];
-          return v == -1 ? null : _palette[v];
-        });
-      });
-
-      final trayRaw = data['tray'] as List;
-      final newTray = trayRaw.map<BlockShape?>((item) {
-        if (item == null) return null;
-        final map = item as Map<String, dynamic>;
-        return _shapeFromSaved(map['def'] as int, map['color'] as int);
-      }).toList();
-
-      if (!mounted) return false;
-      setState(() {
-        grid = newGrid;
-        tray = newTray;
-        score = data['score'] as int? ?? 0;
-      });
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<void> _clearSavedGame() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_kSavedGame);
   }
 
   bool _canPlaceAt(BlockShape shape, int row, int col) {
@@ -556,24 +174,7 @@ class _GameScreenState extends State<GameScreen> {
     return false;
   }
 
-  /// Parmağın tam doğru hücreye denk gelmediği durumlarda bile, yakın
-  /// çevredeki geçerli bir hücreye "yapışarak" yerleştirmeyi dener. Bu,
-  /// dokunma hassasiyeti sorunlarını büyük ölçüde ortadan kaldırır.
-  Point<int>? _resolvePlacement(BlockShape shape, Point<int> tl) {
-    if (_canPlaceAt(shape, tl.y, tl.x)) return tl;
-    const offsets = [
-      Point(0, -1), Point(0, 1), Point(-1, 0), Point(1, 0),
-      Point(-1, -1), Point(1, -1), Point(-1, 1), Point(1, 1),
-    ];
-    for (final o in offsets) {
-      final t = Point(tl.x + o.x, tl.y + o.y);
-      if (_canPlaceAt(shape, t.y, t.x)) return t;
-    }
-    return null;
-  }
-
   Future<void> _placeAt(BlockShape shape, int row, int col, int trayIndex) async {
-    _vibrate(light: true);
     setState(() {
       for (final c in shape.cells) {
         grid[row + c.y][col + c.x] = shape.color;
@@ -591,7 +192,6 @@ class _GameScreenState extends State<GameScreen> {
       });
     }
 
-    unawaited(_saveGameState());
     _checkGameOverState();
   }
 
@@ -623,7 +223,6 @@ class _GameScreenState extends State<GameScreen> {
       for (int r = 0; r < gridSize; r++) toClear.add(Point(c, r));
     }
 
-    _vibrate();
     setState(() => clearingCells = toClear);
     await Future.delayed(const Duration(milliseconds: 220));
     if (!mounted) return;
@@ -649,10 +248,8 @@ class _GameScreenState extends State<GameScreen> {
     for (final shape in tray) {
       if (shape != null && _canPlaceAnywhere(shape)) return;
     }
-    _vibrate();
     setState(() => gameOver = true);
     _saveHighScoreIfNeeded();
-    unawaited(_clearSavedGame());
   }
 
   void _restart() {
@@ -664,48 +261,51 @@ class _GameScreenState extends State<GameScreen> {
       previewCells = {};
       clearingCells = {};
     });
-    unawaited(_saveGameState());
   }
 
-  Future<void> _openSettings() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
-    await BgmPlayer.applySettings();
-  }
-
-  Point<int>? _hoverTopLeft(Offset globalOffset) {
+  void _updateDragPosition(Offset globalPos) {
+    final shape = _draggingShape;
+    if (shape == null) return;
     final box = _gridKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || cellSize == 0) return null;
-    final local = box.globalToLocal(globalOffset);
-    final col = (local.dx / cellSize).floor();
-    final row = (local.dy / cellSize).floor();
-    return Point(col, row);
-  }
+    if (box == null || cellSize == 0) return;
 
-  void _updatePreview(BlockShape shape, Offset globalOffset) {
-    final tl = _hoverTopLeft(globalOffset);
-    if (tl == null) return;
-    final resolved = _resolvePlacement(shape, tl) ?? tl;
-    final cells = shape.cells.map((c) => Point(resolved.x + c.x, resolved.y + c.y)).toSet();
-    final valid = _canPlaceAt(shape, resolved.y, resolved.x);
+    // Parçayı parmaktan yukarı kaldırıyoruz ki görüş kapanmasın ve
+    // tek elle en alt satıra kadar rahatça erişilebilsin.
+    final lift = cellSize * 1.4;
+    final anchor = globalPos.translate(0, -lift);
+    final local = box.globalToLocal(anchor);
+
+    int topLeftCol = (local.dx / cellSize - shape.width / 2).round();
+    int topLeftRow = (local.dy / cellSize - shape.height / 2).round();
+
+    topLeftCol = topLeftCol.clamp(0, gridSize - shape.width);
+    topLeftRow = topLeftRow.clamp(0, gridSize - shape.height);
+
+    final cells = shape.cells.map((c) => Point(topLeftCol + c.x, topLeftRow + c.y)).toSet();
+    final valid = _canPlaceAt(shape, topLeftRow, topLeftCol);
+
     setState(() {
+      _fingerPos = globalPos;
       previewCells = cells;
       previewValid = valid;
+      _previewTopLeft = Point(topLeftCol, topLeftRow);
     });
   }
 
-  void _clearPreview() {
-    if (previewCells.isEmpty) return;
-    setState(() => previewCells = {});
-  }
-
-  /// Parçayı sürüklerken görünürlüğü ve hassasiyeti artırmak için, parçanın
-  /// parmağa göre sabit ve öngörülebilir bir noktada (parmağın hemen
-  /// üzerinde) tutulmasını sağlar.
-  Offset _dragAnchor(Draggable<Object> draggable, BuildContext context, Offset position) {
-    final cs = cellSize > 0 ? cellSize : 32.0;
-    return Offset(cs * 0.9, cs * 1.9);
+  void _onDragEnd() {
+    final shape = _draggingShape;
+    final index = _draggingIndex;
+    final tl = _previewTopLeft;
+    if (shape != null && index != null && tl != null && _canPlaceAt(shape, tl.y, tl.x)) {
+      _placeAt(shape, tl.y, tl.x, index);
+    }
+    setState(() {
+      _draggingShape = null;
+      _draggingIndex = null;
+      _fingerPos = null;
+      _previewTopLeft = null;
+      previewCells = {};
+    });
   }
 
   @override
@@ -716,17 +316,24 @@ class _GameScreenState extends State<GameScreen> {
           builder: (context, constraints) {
             final boardSide = min(constraints.maxWidth - 24, constraints.maxHeight * 0.55);
             cellSize = boardSide / gridSize;
-            return Column(
+            final floatingPiece = _buildFloatingPiece();
+            return Stack(
+              key: _stackKey,
               children: [
-                const SizedBox(height: 8),
-                _buildHeader(),
-                const SizedBox(height: 12),
-                _buildGrid(boardSide),
-                const Spacer(),
-                _buildTray(),
-                const SizedBox(height: 16),
-                if (gameOver) _buildGameOverBanner(),
-                const SizedBox(height: 12),
+                Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    _buildHeader(),
+                    const SizedBox(height: 12),
+                    _buildGrid(boardSide),
+                    const Spacer(),
+                    _buildTray(),
+                    const SizedBox(height: 16),
+                    if (gameOver) _buildGameOverBanner(),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+                if (floatingPiece != null) floatingPiece,
               ],
             );
           },
@@ -735,42 +342,38 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  Widget? _buildFloatingPiece() {
+    final shape = _draggingShape;
+    final pos = _fingerPos;
+    if (shape == null || pos == null || cellSize == 0) return null;
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null) return null;
+
+    final lift = cellSize * 1.4;
+    final anchor = pos.translate(0, -lift);
+    final local = stackBox.globalToLocal(anchor);
+    final pieceW = shape.width * cellSize;
+    final pieceH = shape.height * cellSize;
+
+    return Positioned(
+      left: local.dx - pieceW / 2,
+      top: local.dy - pieceH / 2,
+      child: IgnorePointer(
+        child: _shapeWidget(shape, cellSize, opacity: 0.95),
+      ),
+    );
+  }
+
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  const ParazulaLogo(blockSize: 6),
-                  const SizedBox(width: 8),
-                  Text('PARAZULA',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 2,
-                        color: Colors.white.withOpacity(0.6),
-                      )),
-                ],
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings_rounded, color: Colors.white70),
-                onPressed: _openSettings,
-                tooltip: 'Ayarlar',
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _scoreCard('SKOR', score, const Color(0xFF6C63FF)),
-              _scoreCard('REKOR', highScore, const Color(0xFFFFD93D)),
-            ],
-          ),
+          _scoreCard('SKOR', score, const Color(0xFF6C63FF)),
+          const Text('Block Puzzle',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70)),
+          _scoreCard('REKOR', highScore, const Color(0xFFFFD93D)),
         ],
       ),
     );
@@ -795,43 +398,26 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildGrid(double boardSide) {
-    return RepaintBoundary(
-      child: Container(
-        key: _gridKey,
-        width: boardSide,
-        height: boardSide,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1B1B33),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6)),
-          ],
-        ),
-        child: DragTarget<_DragData>(
-          onMove: (details) => _updatePreview(details.data.shape, details.offset),
-          onLeave: (_) => _clearPreview(),
-          onAcceptWithDetails: (details) {
-            final tl = _hoverTopLeft(details.offset);
-            final resolved = tl == null ? null : _resolvePlacement(details.data.shape, tl);
-            if (resolved != null) {
-              _placeAt(details.data.shape, resolved.y, resolved.x, details.data.trayIndex);
-            } else {
-              _clearPreview();
-            }
-          },
-          builder: (context, candidate, rejected) {
-            return Column(
-              children: List.generate(gridSize, (r) {
-                return Expanded(
-                  child: Row(
-                    children: List.generate(gridSize, (c) => Expanded(child: _buildCell(r, c))),
-                  ),
-                );
-              }),
-            );
-          },
-        ),
+    return Container(
+      key: _gridKey,
+      width: boardSide,
+      height: boardSide,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1B33),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 6)),
+        ],
+      ),
+      child: Column(
+        children: List.generate(gridSize, (r) {
+          return Expanded(
+            child: Row(
+              children: List.generate(gridSize, (c) => Expanded(child: _buildCell(r, c))),
+            ),
+          );
+        }),
       ),
     );
   }
@@ -884,19 +470,31 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildTrayPiece(BlockShape shape, int index) {
+    final isDraggingThis = _draggingIndex == index;
     final pieceWidget = _shapeWidget(shape, cellSize * 0.78);
 
-    return Draggable<_DragData>(
-      data: _DragData(shape, index),
-      dragAnchorStrategy: _dragAnchor,
-      feedback: Material(
-        color: Colors.transparent,
-        child: _shapeWidget(shape, cellSize, opacity: 0.9),
-      ),
-      childWhenDragging: Opacity(opacity: 0.25, child: pieceWidget),
-      onDragStarted: () => _vibrate(light: true),
-      onDragEnd: (_) => _clearPreview(),
-      child: pieceWidget,
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onPanStart: (details) {
+        setState(() {
+          _draggingShape = shape;
+          _draggingIndex = index;
+          _fingerPos = details.globalPosition;
+        });
+        _updateDragPosition(details.globalPosition);
+      },
+      onPanUpdate: (details) => _updateDragPosition(details.globalPosition),
+      onPanEnd: (_) => _onDragEnd(),
+      onPanCancel: () {
+        setState(() {
+          _draggingShape = null;
+          _draggingIndex = null;
+          _fingerPos = null;
+          _previewTopLeft = null;
+          previewCells = {};
+        });
+      },
+      child: Opacity(opacity: isDraggingThis ? 0.2 : 1.0, child: pieceWidget),
     );
   }
 
