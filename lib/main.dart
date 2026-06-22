@@ -3,9 +3,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:audioplayers/audioplayers.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SettingsService.load();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -30,14 +32,306 @@ class BlockPuzzleApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
-      home: const GameScreen(),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+/// ----------------- AYARLAR -----------------
+
+class SettingsService {
+  static bool musicOn = true;
+  static bool vibrationOn = true;
+  static int gridSizeSetting = 8;
+
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    musicOn = prefs.getBool('music_on') ?? true;
+    vibrationOn = prefs.getBool('vibration_on') ?? true;
+    gridSizeSetting = prefs.getInt('grid_size') ?? 8;
+  }
+
+  static Future<void> setMusicOn(bool value) async {
+    musicOn = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('music_on', value);
+  }
+
+  static Future<void> setVibrationOn(bool value) async {
+    vibrationOn = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('vibration_on', value);
+  }
+
+  static Future<void> setGridSize(int value) async {
+    gridSizeSetting = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('grid_size', value);
+  }
+}
+
+/// ----------------- MÜZİK -----------------
+
+class MusicController {
+  static final AudioPlayer _player = AudioPlayer();
+  static bool _started = false;
+
+  static Future<void> start() async {
+    if (_started) return;
+    _started = true;
+    await _player.setReleaseMode(ReleaseMode.loop);
+    await _player.setVolume(1.0);
+    if (SettingsService.musicOn) {
+      await _player.play(AssetSource('audio/bgm.wav'));
+    }
+  }
+
+  static Future<void> setMusicOn(bool value) async {
+    await SettingsService.setMusicOn(value);
+    if (value) {
+      if (!_started) {
+        await start();
+      } else {
+        await _player.resume();
+      }
+    } else {
+      await _player.pause();
+    }
+  }
+}
+
+/// ----------------- AÇILIŞ (SPLASH) EKRANI -----------------
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _anim;
+  late Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _fade = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
+    _anim.forward();
+
+    Future.delayed(const Duration(milliseconds: 500), () {
+      MusicController.start();
+    });
+
+    Future.delayed(const Duration(milliseconds: 3000), () {
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 600),
+            pageBuilder: (_, __, ___) => const GameScreen(),
+            transitionsBuilder: (_, anim, __, child) =>
+                FadeTransition(opacity: anim, child: child),
+          ),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF121225),
+      body: FadeTransition(
+        opacity: _fade,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildLogo(),
+              const SizedBox(height: 22),
+              const Text(
+                'Block Puzzle',
+                style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white),
+              ),
+              const SizedBox(height: 28),
+              const SizedBox(
+                width: 28,
+                height: 28,
+                child: CircularProgressIndicator(
+                    color: Color(0xFF6C63FF), strokeWidth: 3),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogo() {
+    final colors = [
+      const Color(0xFFFF6B6B),
+      const Color(0xFF4ECDC4),
+      const Color(0xFFFFD93D),
+      const Color(0xFF6C63FF),
+    ];
+    return SizedBox(
+      width: 110,
+      height: 110,
+      child: GridView.count(
+        crossAxisCount: 2,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        children: List.generate(4, (i) {
+          return Container(
+            decoration: BoxDecoration(
+              color: colors[i],
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                    color: colors[i].withOpacity(0.6),
+                    blurRadius: 14,
+                    offset: const Offset(0, 5)),
+              ],
+            ),
+          );
+        }),
+      ),
+    );
+  }
+}
+
+/// ----------------- AYARLAR EKRANI -----------------
+
+class SettingsScreen extends StatefulWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late bool musicOn;
+  late bool vibrationOn;
+  late int gridSizeSetting;
+  late int _initialGridSize;
+
+  @override
+  void initState() {
+    super.initState();
+    musicOn = SettingsService.musicOn;
+    vibrationOn = SettingsService.vibrationOn;
+    gridSizeSetting = SettingsService.gridSizeSetting;
+    _initialGridSize = gridSizeSetting;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final gridChanged = gridSizeSetting != _initialGridSize;
+    return Scaffold(
+      backgroundColor: const Color(0xFF121225),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF121225),
+        elevation: 0,
+        title: const Text('Ayarlar'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.pop(context, gridChanged),
+        ),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          _switchTile('Müzik', musicOn, (v) async {
+            setState(() => musicOn = v);
+            await MusicController.setMusicOn(v);
+          }),
+          _switchTile('Titreşim', vibrationOn, (v) async {
+            setState(() => vibrationOn = v);
+            await SettingsService.setVibrationOn(v);
+          }),
+          const SizedBox(height: 24),
+          const Text('Grid Boyutu', style: TextStyle(color: Colors.white70, fontSize: 14)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _gridSizeButton(8)),
+              const SizedBox(width: 12),
+              Expanded(child: _gridSizeButton(10)),
+            ],
+          ),
+          if (gridChanged) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Grid boyutu değişti — geri dönünce oyun sıfırlanacak.',
+              style: TextStyle(color: Colors.orangeAccent, fontSize: 12),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _switchTile(String label, bool value, ValueChanged<bool> onChanged) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B1B33),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SwitchListTile(
+        title: Text(label, style: const TextStyle(color: Colors.white)),
+        value: value,
+        activeColor: const Color(0xFF6C63FF),
+        onChanged: onChanged,
+      ),
+    );
+  }
+
+  Widget _gridSizeButton(int size) {
+    final selected = gridSizeSetting == size;
+    return GestureDetector(
+      onTap: () async {
+        setState(() => gridSizeSetting = size);
+        await SettingsService.setGridSize(size);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF6C63FF) : const Color(0xFF1B1B33),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: selected ? const Color(0xFF6C63FF) : Colors.white24),
+        ),
+        child: Center(
+          child: Text(
+            '${size}x$size',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
 
 /// ----------------- MODELLER -----------------
-
-const int gridSize = 8; // 10x10 istersen bu değeri 10 yap.
 
 class BlockShape {
   final List<Point<int>> cells; // x = sütun, y = satır (göreceli)
@@ -101,12 +395,16 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
+  late int gridSize;
   late List<List<Color?>> grid;
   late List<BlockShape?> tray;
   int score = 0;
   int highScore = 0;
   bool gameOver = false;
   int _pieceIdCounter = 0;
+
+  bool musicOn = SettingsService.musicOn;
+  bool vibrationOn = SettingsService.vibrationOn;
 
   final GlobalKey _gridKey = GlobalKey();
   final GlobalKey _stackKey = GlobalKey();
@@ -125,6 +423,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    gridSize = SettingsService.gridSizeSetting;
     grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null));
     tray = List.generate(3, (_) => _newShape());
     _loadHighScore();
@@ -175,6 +474,8 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _placeAt(BlockShape shape, int row, int col, int trayIndex) async {
+    if (vibrationOn) HapticFeedback.lightImpact();
+
     setState(() {
       for (final c in shape.cells) {
         grid[row + c.y][col + c.x] = shape.color;
@@ -223,11 +524,19 @@ class _GameScreenState extends State<GameScreen> {
       for (int r = 0; r < gridSize; r++) toClear.add(Point(c, r));
     }
 
+    final int linesCleared = fullRows.length + fullCols.length;
+    if (vibrationOn) {
+      if (linesCleared > 1) {
+        HapticFeedback.heavyImpact();
+      } else {
+        HapticFeedback.mediumImpact();
+      }
+    }
+
     setState(() => clearingCells = toClear);
     await Future.delayed(const Duration(milliseconds: 220));
     if (!mounted) return;
 
-    final int linesCleared = fullRows.length + fullCols.length;
     int gained = linesCleared * gridSize * 2;
     if (linesCleared > 1) {
       gained += (linesCleared - 1) * 30; // Combo bonusu
@@ -261,6 +570,30 @@ class _GameScreenState extends State<GameScreen> {
       previewCells = {};
       clearingCells = {};
     });
+  }
+
+  Future<void> _openSettings() async {
+    final gridChanged = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+
+    setState(() {
+      musicOn = SettingsService.musicOn;
+      vibrationOn = SettingsService.vibrationOn;
+    });
+
+    if (gridChanged == true && SettingsService.gridSizeSetting != gridSize) {
+      setState(() {
+        gridSize = SettingsService.gridSizeSetting;
+        grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null));
+        tray = List.generate(3, (_) => _newShape());
+        score = 0;
+        gameOver = false;
+        previewCells = {};
+        clearingCells = {};
+      });
+    }
   }
 
   void _updateDragPosition(Offset globalPos) {
@@ -349,7 +682,7 @@ class _GameScreenState extends State<GameScreen> {
     final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
     if (stackBox == null) return null;
 
-    final lift = cellSize * 1.8;
+    final lift = cellSize * 1.4;
     final anchor = pos.translate(0, -lift);
     final local = stackBox.globalToLocal(anchor);
     final pieceW = shape.width * cellSize;
@@ -366,14 +699,38 @@ class _GameScreenState extends State<GameScreen> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: Column(
         children: [
-          _scoreCard('SKOR', score, const Color(0xFF6C63FF)),
-          const Text('Block Puzzle',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70)),
-          _scoreCard('REKOR', highScore, const Color(0xFFFFD93D)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.settings, color: Colors.white70),
+                onPressed: _openSettings,
+              ),
+              const Text(
+                'Block Puzzle',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70),
+              ),
+              IconButton(
+                icon: Icon(musicOn ? Icons.volume_up : Icons.volume_off, color: Colors.white70),
+                onPressed: () async {
+                  final newVal = !musicOn;
+                  setState(() => musicOn = newVal);
+                  await MusicController.setMusicOn(newVal);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _scoreCard('SKOR', score, const Color(0xFF6C63FF)),
+              _scoreCard('REKOR', highScore, const Color(0xFFFFD93D)),
+            ],
+          ),
         ],
       ),
     );
