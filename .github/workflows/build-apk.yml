@@ -15,15 +15,17 @@ jobs:
       - name: Flutter kur
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
           channel: 'stable'
 
-      - name: Android klasörünü oluştur (eksikse)
-        run: flutter create --platforms=android --project-name=block_puzzle .
+      - name: Android klasörünü oluştur
+        run: flutter create --platforms=android .
 
       - name: Kotlin sürümünü güncelle
         run: |
-          sed -i 's/id "org.jetbrains.kotlin.android" version "[^"]*"/id "org.jetbrains.kotlin.android" version "1.9.10"/' android/settings.gradle
+          sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "1.9.0"/' android/build.gradle
+          sed -i 's/org.jetbrains.kotlin.android" version "[^"]*"/org.jetbrains.kotlin.android" version "1.9.0"/' android/settings.gradle
+          cat android/build.gradle | grep kotlin || true
+          cat android/settings.gradle | grep kotlin || true
 
       - name: Bağımlılıkları indir
         run: flutter pub get
