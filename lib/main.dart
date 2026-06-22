@@ -88,11 +88,8 @@ class MusicController {
   static Future<void> setMusicOn(bool value) async {
     await SettingsService.setMusicOn(value);
     if (value) {
-      if (!_started) {
-        await start();
-      } else {
-        await _player.resume();
-      }
+      if (!_started) await start();
+      else await _player.resume();
     } else {
       await _player.pause();
     }
@@ -118,7 +115,6 @@ class _SplashScreenState extends State<SplashScreen>
     _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
     _fade = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
     _anim.forward();
-
     Future.delayed(const Duration(milliseconds: 500), () => MusicController.start());
     Future.delayed(const Duration(milliseconds: 3000), () {
       if (mounted) {
@@ -150,10 +146,8 @@ class _SplashScreenState extends State<SplashScreen>
               const Text('Block Puzzle',
                   style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white)),
               const SizedBox(height: 28),
-              const SizedBox(
-                width: 28, height: 28,
-                child: CircularProgressIndicator(color: Color(0xFF6C63FF), strokeWidth: 3),
-              ),
+              const SizedBox(width: 28, height: 28,
+                  child: CircularProgressIndicator(color: Color(0xFF6C63FF), strokeWidth: 3)),
             ],
           ),
         ),
@@ -174,8 +168,7 @@ class _SplashScreenState extends State<SplashScreen>
         mainAxisSpacing: 8, crossAxisSpacing: 8,
         children: List.generate(4, (i) => Container(
           decoration: BoxDecoration(
-            color: colors[i],
-            borderRadius: BorderRadius.circular(16),
+            color: colors[i], borderRadius: BorderRadius.circular(16),
             boxShadow: [BoxShadow(color: colors[i].withOpacity(0.6), blurRadius: 14, offset: const Offset(0, 5))],
           ),
         )),
@@ -194,36 +187,28 @@ class MainMenuScreen extends StatefulWidget {
 
 class _MainMenuScreenState extends State<MainMenuScreen> {
   int highScore = 0;
-  bool hasSavedGame = false;
   bool musicOn = SettingsService.musicOn;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
-    setState(() {
-      highScore = prefs.getInt('high_score') ?? 0;
-      hasSavedGame = prefs.getBool('has_saved_game') ?? false;
-    });
+    setState(() { highScore = prefs.getInt('high_score') ?? 0; });
   }
 
-  void _goToGame({bool continueGame = false}) {
+  void _goToGame() {
     Navigator.of(context).push(PageRouteBuilder(
       transitionDuration: const Duration(milliseconds: 400),
-      pageBuilder: (_, __, ___) => GameScreen(continueGame: continueGame),
+      pageBuilder: (_, __, ___) => const GameScreen(),
       transitionsBuilder: (_, anim, __, child) =>
           FadeTransition(opacity: anim, child: child),
     )).then((_) => _load());
   }
 
   Future<void> _openSettings() async {
-    await Navigator.push(context,
-        MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
     setState(() => musicOn = SettingsService.musicOn);
   }
 
@@ -232,63 +217,42 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF121225),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Üst bar — en yüksek skor
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const SizedBox(width: 40),
-                  Column(
-                    children: [
-                      const Text('EN YÜKSEK SKOR',
-                          style: TextStyle(fontSize: 11, color: Colors.white54, letterSpacing: 1.2)),
-                      const SizedBox(height: 4),
-                      Text('$highScore',
-                          style: const TextStyle(
-                              fontSize: 32, fontWeight: FontWeight.bold,
-                              color: Color(0xFFFFD93D))),
-                    ],
-                  ),
-                  IconButton(
-                    icon: Icon(musicOn ? Icons.volume_up : Icons.volume_off, color: Colors.white70),
-                    onPressed: () async {
-                      final v = !musicOn;
-                      setState(() => musicOn = v);
-                      await MusicController.setMusicOn(v);
-                    },
-                  ),
-                ],
-              ),
+        child: Column(children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const SizedBox(width: 40),
+                Column(children: [
+                  const Text('EN YÜKSEK SKOR',
+                      style: TextStyle(fontSize: 11, color: Colors.white54, letterSpacing: 1.2)),
+                  const SizedBox(height: 4),
+                  Text('$highScore',
+                      style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFFFFD93D))),
+                ]),
+                IconButton(
+                  icon: Icon(musicOn ? Icons.volume_up : Icons.volume_off, color: Colors.white70),
+                  onPressed: () async {
+                    final v = !musicOn;
+                    setState(() => musicOn = v);
+                    await MusicController.setMusicOn(v);
+                  },
+                ),
+              ],
             ),
-
-            const Spacer(),
-
-            // Logo
-            _buildLogo(),
-            const SizedBox(height: 12),
-            const Text('Block Puzzle',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white70)),
-
-            const SizedBox(height: 48),
-
-            // Menü butonları
-            _menuButton('Yeni Oyun', const Color(0xFF6C63FF), Icons.play_arrow_rounded,
-                () => _goToGame(continueGame: false)),
-            const SizedBox(height: 16),
-            if (hasSavedGame) ...[
-              _menuButton('Devam Et', const Color(0xFF1AAB7B), Icons.refresh_rounded,
-                  () => _goToGame(continueGame: true)),
-              const SizedBox(height: 16),
-            ],
-            _menuButton('Ayarlar', const Color(0xFF26264A), Icons.settings_rounded,
-                _openSettings),
-
-            const Spacer(),
-          ],
-        ),
+          ),
+          const Spacer(),
+          _buildLogo(),
+          const SizedBox(height: 12),
+          const Text('Block Puzzle',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white70)),
+          const SizedBox(height: 48),
+          _menuButton('Yeni Oyun', const Color(0xFF6C63FF), Icons.play_arrow_rounded, _goToGame),
+          const SizedBox(height: 16),
+          _menuButton('Ayarlar', const Color(0xFF26264A), Icons.settings_rounded, _openSettings),
+          const Spacer(),
+        ]),
       ),
     );
   }
@@ -327,8 +291,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
         mainAxisSpacing: 6, crossAxisSpacing: 6,
         children: List.generate(4, (i) => Container(
           decoration: BoxDecoration(
-            color: colors[i],
-            borderRadius: BorderRadius.circular(12),
+            color: colors[i], borderRadius: BorderRadius.circular(12),
             boxShadow: [BoxShadow(color: colors[i].withOpacity(0.5), blurRadius: 10, offset: const Offset(0, 4))],
           ),
         )),
@@ -337,7 +300,7 @@ class _MainMenuScreenState extends State<MainMenuScreen> {
   }
 }
 
-/// ----------------- AYARLAR EKRANI -----------------
+/// ----------------- AYARLAR -----------------
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -436,6 +399,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
+/// ----------------- PARTİKÜL SİSTEMİ -----------------
+
+class _Particle {
+  Offset position;
+  Offset velocity;
+  Color color;
+  double radius;
+  double opacity;
+  double rotation;
+  double rotationSpeed;
+  bool isSquare;
+
+  _Particle({
+    required this.position,
+    required this.velocity,
+    required this.color,
+    required this.radius,
+    this.opacity = 1.0,
+    this.rotation = 0,
+    this.rotationSpeed = 0,
+    this.isSquare = false,
+  });
+}
+
+class _ExplosionPainter extends CustomPainter {
+  final List<_Particle> particles;
+  _ExplosionPainter(this.particles);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final p in particles) {
+      final paint = Paint()
+        ..color = p.color.withOpacity(p.opacity.clamp(0.0, 1.0))
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
+
+      canvas.save();
+      canvas.translate(p.position.dx, p.position.dy);
+      canvas.rotate(p.rotation);
+
+      if (p.isSquare) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset.zero, width: p.radius * 2, height: p.radius * 2),
+            const Radius.circular(3),
+          ),
+          paint,
+        );
+      } else {
+        canvas.drawCircle(Offset.zero, p.radius, paint);
+      }
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ExplosionPainter old) => true;
+}
+
 /// ----------------- MODELLER -----------------
 
 class BlockShape {
@@ -448,30 +469,19 @@ class BlockShape {
 }
 
 final List<List<List<int>>> _shapeDefs = [
-  [[0, 0]],
-  [[0, 0], [0, 1]],
-  [[0, 0], [1, 0]],
-  [[0, 0], [0, 1], [0, 2]],
-  [[0, 0], [1, 0], [2, 0]],
-  [[0, 0], [0, 1], [1, 0], [1, 1]],
-  [[0, 0], [0, 1], [0, 2], [0, 3]],
-  [[0, 0], [1, 0], [2, 0], [3, 0]],
-  [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]],
-  [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0]],
-  [[0, 0], [1, 0], [1, 1]],
-  [[0, 0], [0, 1], [1, 0]],
-  [[0, 1], [1, 0], [1, 1]],
-  [[0, 0], [0, 1], [1, 1]],
-  [[0, 0], [0, 1], [0, 2], [1, 0]],
-  [[0, 0], [0, 1], [0, 2], [1, 2]],
-  [[1, 0], [1, 1], [1, 2], [0, 0]],
-  [[1, 0], [1, 1], [1, 2], [0, 2]],
-  [[0, 0], [1, 0], [1, 1], [2, 1]],
-  [[0, 1], [1, 0], [1, 1], [2, 0]],
-  [[0, 0], [0, 1], [0, 2], [1, 1]],
-  [[0, 1], [1, 0], [1, 1], [1, 2]],
-  [[0, 0], [0, 1], [1, 0], [1, 1], [2, 0], [2, 1]],
-  [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]],
+  [[0,0]], [[0,0],[0,1]], [[0,0],[1,0]],
+  [[0,0],[0,1],[0,2]], [[0,0],[1,0],[2,0]],
+  [[0,0],[0,1],[1,0],[1,1]],
+  [[0,0],[0,1],[0,2],[0,3]], [[0,0],[1,0],[2,0],[3,0]],
+  [[0,0],[0,1],[0,2],[0,3],[0,4]], [[0,0],[1,0],[2,0],[3,0],[4,0]],
+  [[0,0],[1,0],[1,1]], [[0,0],[0,1],[1,0]],
+  [[0,1],[1,0],[1,1]], [[0,0],[0,1],[1,1]],
+  [[0,0],[0,1],[0,2],[1,0]], [[0,0],[0,1],[0,2],[1,2]],
+  [[1,0],[1,1],[1,2],[0,0]], [[1,0],[1,1],[1,2],[0,2]],
+  [[0,0],[1,0],[1,1],[2,1]], [[0,1],[1,0],[1,1],[2,0]],
+  [[0,0],[0,1],[0,2],[1,1]], [[0,1],[1,0],[1,1],[1,2]],
+  [[0,0],[0,1],[1,0],[1,1],[2,0],[2,1]],
+  [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]],
 ];
 
 final List<Color> _palette = [
@@ -486,8 +496,7 @@ final Random _rng = Random();
 /// ----------------- OYUN EKRANI -----------------
 
 class GameScreen extends StatefulWidget {
-  final bool continueGame;
-  const GameScreen({super.key, this.continueGame = false});
+  const GameScreen({super.key});
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
@@ -512,26 +521,39 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Set<Point<int>> previewCells = {};
   bool previewValid = false;
-  Set<Point<int>> clearingCells = {};
+
+  // Patlama sistemi
+  Set<Point<int>> _flashCells = {};         // parlama fazı
+  Set<Point<int>> _shrinkCells = {};        // küçülme fazı
+  bool _showFlash = false;
+  List<_Particle> _particles = [];
+  late AnimationController _particleAnim;
+  Offset _shakeOffset = Offset.zero;
+  late AnimationController _shakeAnim;
 
   BlockShape? _draggingShape;
   int? _draggingIndex;
   Offset? _fingerPos;
   Point<int>? _previewTopLeft;
 
-  // Yeni rekor animasyonu
   late AnimationController _newRecordAnim;
   late Animation<double> _newRecordScale;
   late Animation<double> _newRecordFade;
 
-  // Oyun bitti animasyonu
   late AnimationController _gameOverAnim;
-  late Animation<double> _gameOverSlide;
 
   @override
   void initState() {
     super.initState();
     gridSize = SettingsService.gridSizeSetting;
+
+    _particleAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 600))
+      ..addListener(_updateParticles)
+      ..addStatusListener((s) { if (s == AnimationStatus.completed) setState(() => _particles = []); });
+
+    _shakeAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 300))
+      ..addListener(_updateShake)
+      ..addStatusListener((s) { if (s == AnimationStatus.completed) setState(() => _shakeOffset = Offset.zero); });
 
     _newRecordAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
     _newRecordScale = Tween<double>(begin: 0.5, end: 1.0)
@@ -540,8 +562,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         .animate(CurvedAnimation(parent: _newRecordAnim, curve: Curves.easeIn));
 
     _gameOverAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
-    _gameOverSlide = Tween<double>(begin: 1.0, end: 0.0)
-        .animate(CurvedAnimation(parent: _gameOverAnim, curve: Curves.easeOut));
 
     grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null));
     tray = List.generate(3, (_) => _newShape());
@@ -550,9 +570,79 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _particleAnim.dispose();
+    _shakeAnim.dispose();
     _newRecordAnim.dispose();
     _gameOverAnim.dispose();
     super.dispose();
+  }
+
+  void _updateParticles() {
+    final t = _particleAnim.value;
+    for (final p in _particles) {
+      p.position += p.velocity * 0.016 * 60;
+      p.velocity = Offset(p.velocity.dx * 0.92, p.velocity.dy * 0.92 + 0.3);
+      p.opacity = (1.0 - t * 1.2).clamp(0.0, 1.0);
+      p.radius = p.radius * 0.985;
+      p.rotation += p.rotationSpeed;
+    }
+    setState(() {});
+  }
+
+  void _updateShake() {
+    final t = _shakeAnim.value;
+    final magnitude = (1.0 - t) * 6.0;
+    _shakeOffset = Offset(
+      sin(t * pi * 8) * magnitude,
+      cos(t * pi * 6) * magnitude * 0.5,
+    );
+    setState(() {});
+  }
+
+  void _spawnParticles(Set<Point<int>> cells, List<Color> colors) {
+    if (cellSize == 0) return;
+    final box = _gridKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null) return;
+    final gridOffset = stackBox.globalToLocal(box.localToGlobal(Offset.zero));
+
+    final newParticles = <_Particle>[];
+    for (final cell in cells) {
+      final center = Offset(
+        gridOffset.dx + cell.x * cellSize + cellSize / 2,
+        gridOffset.dy + cell.y * cellSize + cellSize / 2,
+      );
+      final color = colors[_rng.nextInt(colors.length)];
+
+      // 8 büyük parçacık
+      for (int i = 0; i < 8; i++) {
+        final angle = (i / 8) * pi * 2 + _rng.nextDouble() * 0.5;
+        final speed = 3.0 + _rng.nextDouble() * 5.0;
+        newParticles.add(_Particle(
+          position: center,
+          velocity: Offset(cos(angle) * speed, sin(angle) * speed - 4),
+          color: color,
+          radius: 4.0 + _rng.nextDouble() * 4.0,
+          rotationSpeed: (_rng.nextDouble() - 0.5) * 0.3,
+          isSquare: _rng.nextBool(),
+        ));
+      }
+
+      // 5 küçük parlak parçacık
+      for (int i = 0; i < 5; i++) {
+        final angle = _rng.nextDouble() * pi * 2;
+        final speed = 1.5 + _rng.nextDouble() * 3.0;
+        newParticles.add(_Particle(
+          position: center,
+          velocity: Offset(cos(angle) * speed, sin(angle) * speed - 2),
+          color: Colors.white,
+          radius: 2.0 + _rng.nextDouble() * 2.0,
+        ));
+      }
+    }
+    setState(() => _particles = newParticles);
+    _particleAnim.forward(from: 0);
   }
 
   BlockShape _newShape() {
@@ -629,6 +719,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   Future<void> _checkLines() async {
     final List<int> fullRows = [];
     final List<int> fullCols = [];
+
     for (int r = 0; r < gridSize; r++) {
       if (grid[r].every((cell) => cell != null)) fullRows.add(r);
     }
@@ -649,24 +740,53 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       for (int r = 0; r < gridSize; r++) toClear.add(Point(c, r));
     }
 
+    // Renkleri topla (parçacık için)
+    final Set<Color> usedColors = {};
+    for (final p in toClear) {
+      final c = grid[p.y][p.x];
+      if (c != null) usedColors.add(c);
+    }
+    final colorList = usedColors.isEmpty ? _palette : usedColors.toList();
+
     final int linesCleared = fullRows.length + fullCols.length;
     if (vibrationOn) {
       if (linesCleared > 1) HapticFeedback.heavyImpact();
       else HapticFeedback.mediumImpact();
     }
 
-    setState(() => clearingCells = toClear);
-    await Future.delayed(const Duration(milliseconds: 220));
+    // --- FLAŞ fazı ---
+    setState(() { _flashCells = toClear; _showFlash = true; _shrinkCells = {}; });
+    await Future.delayed(const Duration(milliseconds: 80));
     if (!mounted) return;
+    setState(() { _showFlash = false; });
+    await Future.delayed(const Duration(milliseconds: 40));
+    if (!mounted) return;
+    setState(() { _showFlash = true; });
+    await Future.delayed(const Duration(milliseconds: 60));
+    if (!mounted) return;
+    setState(() { _showFlash = false; _flashCells = {}; });
+
+    // --- KÜÇÜLME fazı ---
+    setState(() { _shrinkCells = toClear; });
+    await Future.delayed(const Duration(milliseconds: 160));
+    if (!mounted) return;
+
+    // --- PARTİKÜLLER ---
+    _spawnParticles(toClear, colorList);
+
+    // --- Sarsıntı ---
+    _shakeAnim.forward(from: 0);
+
+    // --- TEMIZLE ---
+    setState(() {
+      for (final p in toClear) grid[p.y][p.x] = null;
+      _shrinkCells = {};
+    });
 
     int gained = linesCleared * gridSize * 2;
     if (linesCleared > 1) gained += (linesCleared - 1) * 30;
+    setState(() => score += gained);
 
-    setState(() {
-      for (final p in toClear) grid[p.y][p.x] = null;
-      clearingCells = {};
-      score += gained;
-    });
     await _saveHighScoreIfNeeded();
   }
 
@@ -690,19 +810,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _newHighScore = false;
       _showNewHighScore = false;
       previewCells = {};
-      clearingCells = {};
-    });
-  }
-
-  void _goToMenu() {
-    Navigator.of(context).pop();
-  }
-
-  Future<void> _openSettings() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-    setState(() {
-      musicOn = SettingsService.musicOn;
-      vibrationOn = SettingsService.vibrationOn;
+      _flashCells = {};
+      _shrinkCells = {};
+      _particles = [];
     });
   }
 
@@ -711,19 +821,15 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (shape == null) return;
     final box = _gridKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || cellSize == 0) return;
-
     final lift = cellSize * 1.4;
     final anchor = globalPos.translate(0, -lift);
     final local = box.globalToLocal(anchor);
-
     int topLeftCol = (local.dx / cellSize - shape.width / 2).round();
     int topLeftRow = (local.dy / cellSize - shape.height / 2).round();
     topLeftCol = topLeftCol.clamp(0, gridSize - shape.width);
     topLeftRow = topLeftRow.clamp(0, gridSize - shape.height);
-
     final cells = shape.cells.map((c) => Point(topLeftCol + c.x, topLeftRow + c.y)).toSet();
     final valid = _canPlaceAt(shape, topLeftRow, topLeftCol);
-
     setState(() {
       _fingerPos = globalPos;
       previewCells = cells;
@@ -757,11 +863,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             final boardSide = min(constraints.maxWidth - 24, constraints.maxHeight * 0.55);
             cellSize = boardSide / gridSize;
             final floatingPiece = _buildFloatingPiece();
-            return Stack(
-              key: _stackKey,
-              children: [
-                Column(
-                  children: [
+            return Transform.translate(
+              offset: _shakeOffset,
+              child: Stack(
+                key: _stackKey,
+                children: [
+                  Column(children: [
                     const SizedBox(height: 8),
                     _buildHeader(),
                     const SizedBox(height: 12),
@@ -769,12 +876,19 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     const Spacer(),
                     _buildTray(),
                     const SizedBox(height: 16),
-                  ],
-                ),
-                if (floatingPiece != null) floatingPiece,
-                if (_showNewHighScore) _buildNewHighScoreBanner(),
-                if (gameOver) _buildGameOverOverlay(),
-              ],
+                  ]),
+                  // Parçacıklar
+                  if (_particles.isNotEmpty)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: CustomPaint(painter: _ExplosionPainter(_particles)),
+                      ),
+                    ),
+                  if (floatingPiece != null) floatingPiece,
+                  if (_showNewHighScore) _buildNewHighScoreBanner(),
+                  if (gameOver) _buildGameOverOverlay(),
+                ],
+              ),
             );
           },
         ),
@@ -807,7 +921,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           children: [
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.white70),
-              onPressed: _goToMenu,
+              onPressed: () => Navigator.of(context).pop(),
             ),
             const Text('Block Puzzle',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white70)),
@@ -822,7 +936,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               ),
               IconButton(
                 icon: const Icon(Icons.settings, color: Colors.white70),
-                onPressed: _openSettings,
+                onPressed: () async {
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                  setState(() {
+                    musicOn = SettingsService.musicOn;
+                    vibrationOn = SettingsService.vibrationOn;
+                  });
+                },
               ),
             ]),
           ],
@@ -877,30 +997,40 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   Widget _buildCell(int row, int col) {
     final point = Point(col, row);
-    final isClearing = clearingCells.contains(point);
+    final isFlash = _flashCells.contains(point);
+    final isShrink = _shrinkCells.contains(point);
     final isPreview = previewCells.contains(point);
     final baseColor = grid[row][col];
+
     Color? displayColor = baseColor;
-    if (isPreview) {
+    if (isFlash) displayColor = Colors.white;
+    else if (isPreview) {
       displayColor = previewValid
           ? Colors.greenAccent.withOpacity(0.55)
           : Colors.redAccent.withOpacity(0.55);
     }
+
     return Padding(
       padding: const EdgeInsets.all(2),
-      child: AnimatedOpacity(
-        opacity: isClearing ? 0.0 : 1.0,
-        duration: const Duration(milliseconds: 200),
+      child: AnimatedScale(
+        scale: isShrink ? 0.0 : 1.0,
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeIn,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
+          duration: const Duration(milliseconds: 80),
           decoration: BoxDecoration(
             color: displayColor ?? const Color(0xFF26264A),
             borderRadius: BorderRadius.circular(6),
-            border: baseColor == null && !isPreview
+            border: baseColor == null && !isPreview && !isFlash
                 ? Border.all(color: Colors.white.withOpacity(0.04))
                 : null,
-            boxShadow: baseColor != null
-                ? [BoxShadow(color: baseColor.withOpacity(0.5), blurRadius: 4, offset: const Offset(0, 2))]
+            boxShadow: (baseColor != null && !isShrink)
+                ? [BoxShadow(
+                    color: isFlash
+                        ? Colors.white.withOpacity(0.9)
+                        : baseColor.withOpacity(0.5),
+                    blurRadius: isFlash ? 12 : 4,
+                    offset: const Offset(0, 2))]
                 : null,
           ),
         ),
@@ -927,23 +1057,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final pieceWidget = _shapeWidget(shape, cellSize * 0.78);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPanStart: (details) {
-        setState(() {
-          _draggingShape = shape;
-          _draggingIndex = index;
-          _fingerPos = details.globalPosition;
-        });
-        _updateDragPosition(details.globalPosition);
+      onPanStart: (d) {
+        setState(() { _draggingShape = shape; _draggingIndex = index; _fingerPos = d.globalPosition; });
+        _updateDragPosition(d.globalPosition);
       },
-      onPanUpdate: (details) => _updateDragPosition(details.globalPosition),
+      onPanUpdate: (d) => _updateDragPosition(d.globalPosition),
       onPanEnd: (_) => _onDragEnd(),
       onPanCancel: () {
         setState(() {
-          _draggingShape = null;
-          _draggingIndex = null;
-          _fingerPos = null;
-          _previewTopLeft = null;
-          previewCells = {};
+          _draggingShape = null; _draggingIndex = null;
+          _fingerPos = null; _previewTopLeft = null; previewCells = {};
         });
       },
       child: Opacity(opacity: isDraggingThis ? 0.2 : 1.0, child: pieceWidget),
@@ -974,11 +1097,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ---- YENİ REKOR ANİMASYONU ----
   Widget _buildNewHighScoreBanner() {
     return Positioned(
-      top: 120,
-      left: 0, right: 0,
+      top: 120, left: 0, right: 0,
       child: Center(
         child: FadeTransition(
           opacity: _newRecordFade,
@@ -991,17 +1112,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 borderRadius: BorderRadius.circular(30),
                 boxShadow: [BoxShadow(color: const Color(0xFFFFD93D).withOpacity(0.6), blurRadius: 20)],
               ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.star_rounded, color: Colors.white, size: 22),
-                  SizedBox(width: 8),
-                  Text('YENİ REKOR!',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                  SizedBox(width: 8),
-                  Icon(Icons.star_rounded, color: Colors.white, size: 22),
-                ],
-              ),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.star_rounded, color: Colors.white, size: 22),
+                SizedBox(width: 8),
+                Text('YENİ REKOR!',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                SizedBox(width: 8),
+                Icon(Icons.star_rounded, color: Colors.white, size: 22),
+              ]),
             ),
           ),
         ),
@@ -1009,7 +1127,6 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
-  // ---- OYUN BİTTİ OVERLAY ----
   Widget _buildGameOverOverlay() {
     return SlideTransition(
       position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
@@ -1026,66 +1143,60 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               border: Border.all(color: Colors.redAccent.withOpacity(0.5), width: 2),
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20)],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('OYUN BİTTİ',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.redAccent)),
-                const SizedBox(height: 16),
-                _infoRow('Skor', '$score', const Color(0xFF6C63FF)),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text('OYUN BİTTİ',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+              const SizedBox(height: 16),
+              _infoRow('Skor', '$score', const Color(0xFF6C63FF)),
+              const SizedBox(height: 8),
+              _infoRow('En Yüksek', '$highScore', const Color(0xFFFFD93D)),
+              if (_newHighScore) ...[
                 const SizedBox(height: 8),
-                _infoRow('En Yüksek', '$highScore', const Color(0xFFFFD93D)),
-                if (_newHighScore) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFD93D).withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.star_rounded, color: Color(0xFFFFD93D), size: 16),
-                        SizedBox(width: 4),
-                        Text('Yeni Rekor!',
-                            style: TextStyle(color: Color(0xFFFFD93D), fontWeight: FontWeight.bold)),
-                      ],
-                    ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFD93D).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                ],
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _restart,
-                    icon: const Icon(Icons.replay_rounded, color: Colors.white),
-                    label: const Text('Yeniden Oyna',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C63FF),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: _goToMenu,
-                    icon: const Icon(Icons.home_rounded, color: Colors.white70),
-                    label: const Text('Ana Menü',
-                        style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.white24),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    ),
-                  ),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.star_rounded, color: Color(0xFFFFD93D), size: 16),
+                    SizedBox(width: 4),
+                    Text('Yeni Rekor!',
+                        style: TextStyle(color: Color(0xFFFFD93D), fontWeight: FontWeight.bold)),
+                  ]),
                 ),
               ],
-            ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _restart,
+                  icon: const Icon(Icons.replay_rounded, color: Colors.white),
+                  label: const Text('Yeniden Oyna',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6C63FF),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.home_rounded, color: Colors.white70),
+                  label: const Text('Ana Menü',
+                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ]),
           ),
         ),
       ),
