@@ -375,6 +375,85 @@ final List<List<List<int>>> _shapeDefs = [
   [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]],
 ];
 
+// Şekilleri büyüklüğe göre grupla (küçük=1-2, orta=3-4, büyük=5+)
+final List<int> _smallShapes  = [0, 1, 2];           // 1-2 hücre
+final List<int> _mediumShapes = [3, 4, 5, 10, 11, 12, 13]; // 3-4 hücre
+final List<int> _largeShapes  = [6, 7, 14, 15, 16, 17, 18, 19, 20, 21]; // 4-5 hücre
+final List<int> _xlShapes     = [8, 9, 22, 23];      // 5-6 hücre
+
+/// Grid doluluk oranını hesapla (0.0 - 1.0)
+double _gridFillRate(List<List<Color?>> grid, int size) {
+  int filled = 0;
+  for (final row in grid) for (final c in row) if (c != null) filled++;
+  return filled / (size * size);
+}
+
+/// Bir şeklin grid'e en az bir yere sığıp sığmadığını kontrol et
+bool _shapeCanFit(List<List<int>> def, List<List<Color?>> grid, int gridSize) {
+  final cells = def.map((c) => Point<int>(c[1], c[0])).toList();
+  final w = cells.map((c) => c.x).reduce(max) + 1;
+  final h = cells.map((c) => c.y).reduce(max) + 1;
+  for (int r = 0; r <= gridSize - h; r++) {
+    for (int c = 0; c <= gridSize - w; c++) {
+      bool ok = true;
+      for (final cell in cells) {
+        if (grid[r + cell.y][c + cell.x] != null) { ok = false; break; }
+      }
+      if (ok) return true;
+    }
+  }
+  return false;
+}
+
+/// Doluluk oranına göre uygun şekil listesi seç
+List<int> _candidateShapes(double fill) {
+  if (fill < 0.3) {
+    // Grid boş: büyük ve orta ağırlıklı
+    return [..._largeShapes, ..._largeShapes, ..._mediumShapes, ..._xlShapes];
+  } else if (fill < 0.55) {
+    // Orta doluluk: karma
+    return [..._mediumShapes, ..._mediumShapes, ..._largeShapes, ..._smallShapes];
+  } else if (fill < 0.75) {
+    // Dolmaya başlıyor: orta ve küçük ağırlıklı
+    return [..._mediumShapes, ..._smallShapes, ..._smallShapes, ..._mediumShapes];
+  } else {
+    // Çok dolu: küçük şekiller öncelikli
+    return [..._smallShapes, ..._smallShapes, ..._smallShapes, ..._mediumShapes];
+  }
+}
+
+/// Üç bloktan en az 2'sinin grid'e sığmasını garantile
+List<int> _pickThreeShapeIndices(List<List<Color?>> grid, int gridSize) {
+  final fill = _gridFillRate(grid, gridSize);
+  final candidates = _candidateShapes(fill);
+  candidates.shuffle(_rng);
+
+  final List<int> result = [];
+  final List<int> fallback = [];
+
+  // Önce sığabilenleri ekle
+  for (final idx in candidates) {
+    if (result.length >= 3) break;
+    if (_shapeCanFit(_shapeDefs[idx], grid, gridSize)) {
+      result.add(idx);
+    } else {
+      fallback.add(idx);
+    }
+  }
+
+  // Eğer 3'ü dolduramadıysak (grid çok dolu) fallback'ten ekle
+  while (result.length < 3 && fallback.isNotEmpty) {
+    result.add(fallback.removeAt(0));
+  }
+
+  // Hâlâ eksikse rastgele doldur
+  while (result.length < 3) {
+    result.add(_rng.nextInt(_shapeDefs.length));
+  }
+
+  return result;
+}
+
 final List<Color> _basePalette = [
   const Color(0xFFFF6B6B), const Color(0xFF4ECDC4),
   const Color(0xFFFFD93D), const Color(0xFF6C63FF),
@@ -506,7 +585,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _gameOverAnim = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
 
     grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null));
-    tray = List.generate(3, (_) => _newShape());
+    tray = _newTray();
     _loadHighScore();
   }
 
@@ -589,12 +668,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     });
   }
 
-  BlockShape _newShape() {
+  BlockShape _shapeFromIndex(int idx) {
     _pieceIdCounter++;
-    final def = _shapeDefs[_rng.nextInt(_shapeDefs.length)];
+    final def = _shapeDefs[idx];
     final cells = def.map((c) => Point<int>(c[1], c[0])).toList();
     final palette = _paletteForTier(_currentTier);
     return BlockShape(cells, palette[_rng.nextInt(palette.length)], _pieceIdCounter);
+  }
+
+  /// 3'lü tepsiy akıllıca doldur: doluluk oranına göre uyumlu bloklar seç
+  List<BlockShape> _newTray() {
+    final indices = _pickThreeShapeIndices(grid, gridSize);
+    return indices.map(_shapeFromIndex).toList();
   }
 
   Future<void> _loadHighScore() async {
@@ -631,7 +716,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           if (shape == null) return null;
           final palette = _paletteForTier(_currentTier);
           return BlockShape(shape.cells, palette[_rng.nextInt(palette.length)], shape.id);
-        }).toList();
+        }).toList() as List<BlockShape?>;
       });
     }
   }
@@ -653,7 +738,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _placeAt(BlockShape shape, int row, int col, int trayIndex) async {
-    if (vibrationOn) HapticFeedback.selectionClick();
+    if (vibrationOn) {
+      HapticFeedback.selectionClick();
+    }
     final oldScore = score;
     setState(() {
       for (final c in shape.cells) grid[row + c.y][col + c.x] = shape.color;
@@ -663,7 +750,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     });
     _checkTierUp(oldScore, score);
     await _checkLines();
-    if (tray.every((p) => p == null)) setState(() { tray = List.generate(3, (_) => _newShape()); });
+    if (tray.every((p) => p == null)) setState(() { tray = _newTray(); });
     _checkGameOverState();
   }
 
@@ -692,19 +779,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final accent = _tierColor(score);
 
     if (vibrationOn) {
-      // Patlama titreşimi: combo'da çift vuruş, tekil'de tek hafif vuruş
-      if (linesCleared >= 3) {
-        HapticFeedback.lightImpact();
-        await Future.delayed(const Duration(milliseconds: 60));
-        HapticFeedback.lightImpact();
-        await Future.delayed(const Duration(milliseconds: 60));
-        HapticFeedback.lightImpact();
-      } else if (linesCleared == 2) {
-        HapticFeedback.lightImpact();
-        await Future.delayed(const Duration(milliseconds: 80));
-        HapticFeedback.lightImpact();
-      } else {
-        HapticFeedback.lightImpact();
+      if (vibrationOn) {
+        HapticFeedback.vibrate();
       }
     }
 
@@ -767,7 +843,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _gameOverAnim.reset(); _newRecordAnim.reset();
     setState(() {
       grid = List.generate(gridSize, (_) => List.generate(gridSize, (_) => null));
-      tray = List.generate(3, (_) => _newShape());
+      tray = _newTray();
       score = 0; gameOver = false; _newHighScore = false;
       _showNewHighScore = false; _currentTier = 0;
       previewCells = {}; _flashCells = {}; _shrinkCells = {}; _particles = [];
