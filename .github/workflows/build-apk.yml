@@ -26,7 +26,17 @@ jobs:
             -exec sed -i 's/ext.kotlin_version = "[^"]*"/ext.kotlin_version = "1.9.0"/g' {} \;
           find . -name "*.gradle" -not -path "*/build/*" \
             -exec sed -i 's/id "org.jetbrains.kotlin.android" version "[^"]*"/id "org.jetbrains.kotlin.android" version "1.9.0"/g' {} \;
-          find . -name "*.gradle" -not -path "*/build/*" | xargs grep -l "kotlin" 2>/dev/null || true
+
+      - name: VIBRATE iznini AndroidManifest'e ekle
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          if ! grep -q "VIBRATE" "$MANIFEST"; then
+            sed -i 's/<manifest/<manifest/' "$MANIFEST"
+            sed -i 's|<application|<uses-permission android:name="android.permission.VIBRATE"/>\n    <application|' "$MANIFEST"
+            echo "VIBRATE izni eklendi"
+          else
+            echo "VIBRATE izni zaten var"
+          fi
 
       - name: Bağımlılıkları indir
         run: flutter pub get
