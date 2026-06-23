@@ -69,11 +69,32 @@ class SettingsService {
 
 /// ----------------- MÜZİK -----------------
 
-class MusicController {
+class MusicController with WidgetsBindingObserver {
   static final AudioPlayer _player = AudioPlayer();
   static bool _started = false;
+  static MusicController? _instance;
+
+  static void _init() {
+    if (_instance != null) return;
+    _instance = MusicController._();
+    WidgetsBinding.instance.addObserver(_instance!);
+  }
+
+  MusicController._();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached ||
+        state == AppLifecycleState.hidden) {
+      _player.pause();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_started && SettingsService.musicOn) _player.resume();
+    }
+  }
 
   static Future<void> start() async {
+    _init();
     if (_started) return;
     _started = true;
     await _player.setReleaseMode(ReleaseMode.loop);
@@ -632,7 +653,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   }
 
   Future<void> _placeAt(BlockShape shape, int row, int col, int trayIndex) async {
-    if (vibrationOn) HapticFeedback.lightImpact();
+    if (vibrationOn) HapticFeedback.selectionClick();
     final oldScore = score;
     setState(() {
       for (final c in shape.cells) grid[row + c.y][col + c.x] = shape.color;
@@ -671,9 +692,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final accent = _tierColor(score);
 
     if (vibrationOn) {
-      if (linesCleared >= 3) HapticFeedback.heavyImpact();
-      else if (linesCleared == 2) HapticFeedback.mediumImpact();
-      else HapticFeedback.mediumImpact();
+      // Patlama titreşimi: combo'da çift vuruş, tekil'de tek hafif vuruş
+      if (linesCleared >= 3) {
+        HapticFeedback.lightImpact();
+        await Future.delayed(const Duration(milliseconds: 60));
+        HapticFeedback.lightImpact();
+        await Future.delayed(const Duration(milliseconds: 60));
+        HapticFeedback.lightImpact();
+      } else if (linesCleared == 2) {
+        HapticFeedback.lightImpact();
+        await Future.delayed(const Duration(milliseconds: 80));
+        HapticFeedback.lightImpact();
+      } else {
+        HapticFeedback.lightImpact();
+      }
     }
 
     // Kombo efekti
